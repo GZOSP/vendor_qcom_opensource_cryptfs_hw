@@ -17,7 +17,7 @@ cc_library_shared {
     shared_libs: commonSharedLibraries,
 
     product_variables: {
-        aicp: {
+        gzosp: {
             device_support_legacy_hwfde: {
                 cflags: ["-DLEGACY_HW_DISK_ENCRYPTION"],
             },
