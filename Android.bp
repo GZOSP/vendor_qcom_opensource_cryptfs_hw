@@ -18,11 +18,11 @@ cc_library_shared {
 
     product_variables: {
         gzosp: {
-            device_support_legacy_hwfde: {
-                cflags: ["-DLEGACY_HW_DISK_ENCRYPTION"],
+            should_skip_waiting_for_qsee: {
+                cflags: ["-DSKIP_WAITING_FOR_QSEE"],
             },
-            device_support_wait_for_qsee: {
-                cflags: ["-DWAIT_FOR_QSEE"],
+            supports_legacy_hw_fde: {
+                cflags: ["-DLEGACY_HW_DISK_ENCRYPTION"],
             },
         },
     },

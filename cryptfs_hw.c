@@ -70,10 +70,8 @@ static int (*qseecom_update_key)(int, void*, void*);
 static int (*qseecom_wipe_key)(int);
 #endif
 
-#define CRYPTFS_HW_KMS_CLEAR_KEY			0
 #define CRYPTFS_HW_KMS_WIPE_KEY				1
 #define CRYPTFS_HW_UP_CHECK_COUNT			10
-#define CRYPTFS_HW_CLEAR_KEY_FAILED			-11
 #define CRYPTFS_HW_KMS_MAX_FAILURE			-10
 #define CRYPTFS_HW_UPDATE_KEY_FAILED			-9
 #define CRYPTFS_HW_WIPE_KEY_FAILED			-8
@@ -96,9 +94,28 @@ static inline void* secure_memset(void* v, int c , size_t n)
 	return v;
 }
 
-static int is_qseecom_up();
-
 #ifdef LEGACY_HW_DISK_ENCRYPTION
+#ifdef SKIP_WAITING_FOR_QSEE
+static int is_qseecom_up()
+{
+    return 1;
+}
+#else
+static int is_qseecom_up()
+{
+    int i = 0;
+    char value[PROPERTY_VALUE_MAX] = {0};
+
+    for (; i<CRYPTFS_HW_UP_CHECK_COUNT; i++) {
+        property_get("sys.keymaster.loaded", value, "");
+        if (!strncmp(value, "true", PROPERTY_VALUE_MAX))
+            return 1;
+        usleep(100000);
+    }
+    return 0;
+}
+#endif
+
 static int load_qseecom_library()
 {
     const char *error = NULL;
@@ -271,27 +288,11 @@ int set_ice_param(int flag)
 	return ret;
 }
 #else
-int set_ice_param(int flag)
+int set_ice_param(__unused int flag)
 {
 	return -1;
 }
 #endif
-
-static int cryptfs_hw_clear_key(enum cryptfs_hw_key_management_usage_type usage)
-{
-	int32_t ret;
-
-	ret = __cryptfs_hw_wipe_clear_key(usage, CRYPTFS_HW_KMS_CLEAR_KEY);
-	if (ret) {
-		SLOGE("Error::ioctl call to wipe the encryption key for usage %d failed with ret = %d, errno = %d\n",
-			usage, ret, errno);
-		ret = CRYPTFS_HW_CLEAR_KEY_FAILED;
-	} else {
-		SLOGE("SUCCESS::ioctl call to wipe the encryption key for usage %d success with ret = %d\n",
-			usage, ret);
-	}
-	return ret;
-}
 
 static int cryptfs_hw_update_key(enum cryptfs_hw_key_management_usage_type usage,
 			unsigned char *current_hash32, unsigned char *new_hash32)
@@ -375,31 +376,6 @@ static unsigned char* get_tmp_passwd(const char* passwd)
     return tmp_passwd;
 }
 
-#ifdef WAIT_FOR_QSEE
-int is_qseecom_up()
-{
-    int i = 0;
-    char value[PROPERTY_VALUE_MAX] = {0};
-
-    for (; i<CRYPTFS_HW_UP_CHECK_COUNT; i++) {
-#ifdef LEGACY_HW_DISK_ENCRYPTION
-        property_get("sys.keymaster.loaded", value, "");
-#else
-        property_get("vendor.sys.keymaster.loaded", value, "");
-#endif
-        if (!strncmp(value, "true", PROPERTY_VALUE_MAX))
-            return 1;
-        usleep(100000);
-    }
-    return 0;
-}
-#else
-int is_qseecom_up()
-{
-    return 1;
-}
-#endif
-
 /*
  * For NON-ICE targets, it would return 0 on success. On ICE based targets,
  * it would return key index in the ICE Key LUT
@@ -477,6 +453,7 @@ int clear_hw_device_encryption_key()
 	return cryptfs_hw_wipe_key(map_usage(CRYPTFS_HW_KM_USAGE_DISK_ENCRYPTION));
 }
 
+#ifdef LEGACY_HW_DISK_ENCRYPTION
 static int get_keymaster_version()
 {
     int rc = -1;
@@ -489,6 +466,7 @@ static int get_keymaster_version()
 
     return mod->module_api_version;
 }
+#endif
 
 int should_use_keymaster()
 {
